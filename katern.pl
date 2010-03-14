@@ -28,10 +28,10 @@ use constant {
 };
 
 # read the command line options
-my $scalePercent = 100;
-my $outputFilename = "-";
-my $sheetsPerSignature = -1; 
-my $leadPages = 0;
+my $scalePercent = 100;                                                 #default scaling 100%
+my $outputFilename = "-";                                               #default output file '-', meaning STDOUT
+my $sheetsPerSignature = -1;                                            #default value used for internal logic
+my $leadPages = 0;                                                      #default number of leading blank pages
 my $medium = "a4";
 my $debug = 0;
 my $verbose = 0;
@@ -75,34 +75,78 @@ my $inPages = $leadPages + $inPdf->pages;
 (my $incllx, my $inclly, my $incurx, my $incury) = $inPdf->openpage(1)->get_cropbox;
 (my $inmllx, my $inmlly, my $inmurx, my $inmury) = $inPdf->openpage(1)->get_mediabox;
 if ($scale == 0) {                                                      #forced 2-up scaling
-  $scale = min($outXMediaSize/($incury - $inclly), $outYMediaSize/($incurx - $incllx));   
+  $scale = max(
+              min($outXMediaSize/($incury - $inclly), $outYMediaSize/2/($incurx - $incllx)),
+              min($outYMediaSize/($incury - $inclly), $outXMediaSize/2/($incurx - $incllx))
+            );
 }
 my $inXCropSize = $scale * ($incurx - $incllx);
 my $inYCropSize = $scale * ($incury - $inclly);
 my $inXMediaSize = $scale * ($inmurx - $inmllx);
 my $inYMediaSize = $scale * ($inmury - $inmlly);
+if (
+    (2*$inXCropSize > $outYMediaSize || $inYCropSize > $outXMediaSize) 
+  &&
+    (2*$inXCropSize > $outXMediaSize || $inYCropSize > $outYMediaSize) 
+  ) {
+  $scale = max(
+              min($outXMediaSize/($incury - $inclly), $outYMediaSize/2/($incurx - $incllx)),
+              min($outYMediaSize/($incury - $inclly), $outXMediaSize/2/($incurx - $incllx))
+            );
+  $inXCropSize = $scale * ($incurx - $incllx);
+  $inYCropSize = $scale * ($incury - $inclly);
+  $inXMediaSize = $scale * ($inmurx - $inmllx);
+  $inYMediaSize = $scale * ($inmury - $inmlly);
+  printf STDERR ("Note: downscaled for 2-up printing.\n");
+}
 
+my $XSize = $inXCropSize;
+my $YSize = $inYCropSize;
+my $nextFoldDirection = SPINE;
+my $nextXSize = 2*$inXCropSize;
+my $nextYSize = $inYCropSize;
+my $topfolds = 0;
+my $spinefolds = 0;
+my $folds = $topfolds + $spinefolds;
+my $maxPortrait = 0;
+my $maxLandscape = 0;
+if ($nextXSize > $outXMediaSize || $nextYSize > $outYMediaSize) {
+  $maxPortrait =  $folds;
+  printf STDERR ("Portrait max reached at spine=%d, top=%d, x=%.2fcm, y=%.2fcm\n",$spinefolds,$topfolds,$XSize*cm,$YSize*cm);
+}
+if ($nextXSize > $outYMediaSize || $nextYSize > $outXMediaSize) {
+  $maxLandscape = $folds;
+  printf STDERR ("Landscape max reached at spine=%d, top=%d, x=%.2fcm, y=%.2fcm\n",$spinefolds,$topfolds,$XSize*cm,$YSize*cm);
+}
+while (! ($maxPortrait && $maxLandscape) ) {
+  $XSize = $nextXSize;
+  $YSize = $nextYSize;
+  $spinefolds += ($nextFoldDirection == SPINE) ? 1 : 0;
+  $topfolds += ($nextFoldDirection == TOP) ? 1 : 0;
+  $folds = $topfolds + $spinefolds;
+  $nextFoldDirection = $nextFoldDirection == TOP ? SPINE : TOP;
+  $nextXSize *= ($nextFoldDirection == SPINE) ? 2 : 1;
+  $nextYSize *= ($nextFoldDirection == TOP) ? 2 : 1;
+  printf STDERR ("Folded spine=%d, top=%d, x=%.2fcm, y=%.2fcm, nx=%.2fcm, ny=%.2fcm\n",$spinefolds,$topfolds,$XSize*cm,$YSize*cm,$nextXSize*cm,$nextYSize*cm);
+  if ( ! $maxPortrait  && ($nextXSize > $outXMediaSize || $nextYSize > $outYMediaSize) ) {
+    $maxPortrait =  $folds;
+    printf STDERR ("Portrait max reached at spine=%d, top=%d, x=%.2fcm, y=%.2fcm, nx=%.2fcm, ny=%.2fcm\n",$spinefolds,$topfolds,$XSize*cm,$YSize*cm,$nextXSize*cm,$nextYSize*cm);
+  }
+  if ( ! $maxLandscape && ($nextXSize > $outYMediaSize || $nextYSize > $outXMediaSize) ) {
+    $maxLandscape = $folds;
+    printf STDERR ("Landscape max reached at spine=%d, top=%d, x=%.2fcm, y=%.2fcm, nx=%.2fcm, ny=%.2fcm\n",$spinefolds,$topfolds,$XSize*cm,$YSize*cm,$nextXSize*cm,$nextYSize*cm);
+  }
+}
 #TODO implement modeled algorithm for deciding on page orientation and
 #TODO implement final rotation in function of landscape 
 
-my $topfoldsPortrait = floor(log($outYMediaSize / $inYCropSize)/log(2));
-my $spinefoldsPortrait = floor(log($outXMediaSize / $inXCropSize)/log(2));
-my $topfoldsLandscape = floor(log($outXMediaSize / $inYCropSize)/log(2));
-my $spinefoldsLandscape = floor(log($outYMediaSize / $inXCropSize)/log(2));
-my $topfolds;
-my $spinefolds;
-if ($topfoldsPortrait + $spinefoldsPortrait < $topfoldsLandscape + $spinefoldsLandscape) {
-  $topfolds = $topfoldsLandscape;
-  $spinefolds = $spinefoldsLandscape;
-  #my $switch = $outXMediaSize;
-  #$outXMediaSize = $outYMediaSize;
-  #$outYMediaSize = $outXMediaSize;
+my $rotate = 0;
+if ($maxLandscape > $maxPortrait) {
+  print STDERR ("ROTATE\n");
+  $rotate = 1;
   ($outXMediaSize, $outYMediaSize) = ($outYMediaSize, $outXMediaSize);
-} else {
-  $topfolds = $topfoldsPortrait;
-  $spinefolds = $spinefoldsPortrait;
 }
-my $folds = $topfolds + $spinefolds;
+
 my $matrixXSize = 2**$spinefolds;
 my $matrixYSize = 2**$topfolds;
 my $cellXSize = $outXMediaSize / $matrixXSize;
@@ -115,11 +159,16 @@ if ( $sheetsPerSignature == 0 ) {                                       #user re
   $signatures = 1;
   $sheetsPerSignature = ceil($inPages / $inPagesPerOutPage / 2);
   $inPagesPerSignature = 2 * $sheetsPerSignature * $inPagesPerOutPage;
-} elsif ( $sheetsPerSignature > 0 ) {                                  #user-defined value
+} elsif ( $sheetsPerSignature > 0 ) {                                   #user-defined value
   $inPagesPerSignature = 2 * $sheetsPerSignature * $inPagesPerOutPage;
   $signatures = ceil($inPages / $inPagesPerSignature);
-} else {
-  $inPagesPerSignature = 24;                                            #default: final fold spans 8 sheets
+} else {                                                                #default: final fold spans max. 8 sheets
+  if ( $inPages % 4 ) {
+    $inPagesPerSignature = $inPages + (4 - $inPages % 4);
+  } else {
+    $inPagesPerSignature = $inPages;
+  }
+  $inPagesPerSignature = max(min(32, $inPagesPerSignature),2*$inPagesPerOutPage);
   $signatures = ceil($inPages / $inPagesPerSignature);
   $sheetsPerSignature = ceil($inPagesPerSignature / 2 / $inPagesPerOutPage);
 }
@@ -132,6 +181,8 @@ my $Xoffset = $scale * ($inmllx - $incllx);                             #should 
 
 if ($debug || $verbose)  {
   printf STDERR ("Input pages%s: %d\n",$leadPages ? " (inc. empty lead pages)" : "",$inPages);
+  printf STDERR ("inXCropSize: %.2fcm\n",$inXCropSize*cm);
+  printf STDERR ("InYCropSize: %.2fcm\n",$inYCropSize*cm);
   printf STDERR ("outXMediaSize: %.2fcm\n",$outXMediaSize*cm);
   printf STDERR ("outYMediaSize: %.2fcm\n",$outYMediaSize*cm);
   printf STDERR ("spinefolds: %d\n",$spinefolds);
@@ -228,20 +279,36 @@ for ($nr=1; $nr<=$outPages; $nr++) {
     $outPage[$nr]->mediabox($outXMediaSize, $outYMediaSize);
 }
 
-#draw a folding line on each first page of a signature (= starting fold)
+#draw a folding line for each topfold  on each first page of a signature
 for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
-  my $line = $outPage[$nr]->gfx;
-  $line->save;
-  $line->linedash((10,10));
-  if ($spinefolds > $topfolds) {                                        #vertical line
-    $line->move($outXMediaSize/2,0);
-    $line->line($outXMediaSize/2,$outYMediaSize);
-  } else {                                                              #horizontal line
-    $line->move(0,$outYMediaSize/2);  
-    $line->line($outXMediaSize,$outYMediaSize/2);
+  my $fold;
+  for ($fold=1; $fold<=$topfolds; $fold+=1) {
+    my $line = $outPage[$nr]->gfx;
+    $line->save;
+    $line->linedash((5,15));
+    $line->move($outXMediaSize - $outXMediaSize/2**($fold-1),$outYMediaSize/2**$fold);
+    $line->line($outXMediaSize,$outYMediaSize/2**$fold);
+    $line->stroke;
+    $line->restore;
   }
-  $line->stroke;
-  $line->restore;
+}
+
+#draw a folding ticks for each spinefold  on each first page of a signature
+for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
+  my $fold;
+  for ($fold=1; $fold<=$spinefolds; $fold+=1) {
+    my $line = $outPage[$nr]->gfx;
+    $line->save;
+    $line->move($outXMediaSize - $outXMediaSize/2**$fold,$outYMediaSize/2**$fold);
+    $line->line($outXMediaSize - $outXMediaSize/2**$fold,$outYMediaSize/2**$fold - $outYMediaSize/50);
+    $line->stroke;
+    $line->restore;
+    $line->save;
+    $line->move($outXMediaSize - $outXMediaSize/2**$fold,$outYMediaSize/50);
+    $line->line($outXMediaSize - $outXMediaSize/2**$fold,0);
+    $line->stroke;
+    $line->restore;
+  }
 }
 
 #write on each page the number of the signature and the number within the signature
@@ -311,7 +378,16 @@ for ($nr=1; $nr<=$inPages; $nr++) {
     }
 }
 
-#$outPage->rotate(90);
+if ($rotate) {
+  for ($nr=1; $nr<=$outPages; $nr++) {
+    if ($nr % 2) {
+      $outPage[$nr]->rotate(90);
+    } else {
+      $outPage[$nr]->rotate(270);
+    }
+  }
+}
+
 if ($outputFilename =~ /^-$/) {
   print $outPdf->stringify;
 } else {
@@ -385,6 +461,6 @@ B<Signaturize> processes a PDF-file into another PDF-file that can be used to pr
 
 The output is always in portrait position, to facilitate duplex printing. The output contains numbers in the margin that help to correctly position the pages, by defining the orientation, the order within the signature and the order of subsequential signatures.
 
-The first fold for each signature is indicated on the first page of the (unfolded) signature. If the fold is indicated by a horizontal line, the top half of the page(s) if folded over the bottom half. The next fold is made by folding the right half of the pages over the left half. This is repeated until the signature is completely folded. The the fold is indicated by a vertical line, the same folding technique is used, starting by folding the right half of the page(s) over the left half.
+The folds for each signature are indicated on the first page of the (unfolded) signature. If the fold is indicated by a horizontal line, the top half of the page(s) is folded backwards, behind the bottom half. If the fold is indicated by vertical tick-lines, the left half of the pages is folded backward, behind the right half. This is repeated until the signature is completely folded. 
 
 =cut
