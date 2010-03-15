@@ -108,8 +108,8 @@ my $nextYSize = $inYCropSize;
 my $topfolds = 0;
 my $spinefolds = 0;
 my $folds = $topfolds + $spinefolds;
-my $maxPortrait = 0;
-my $maxLandscape = 0;
+my $maxPortrait = -1;
+my $maxLandscape = -1;
 if ($nextXSize > $outXMediaSize || $nextYSize > $outYMediaSize) {
   $maxPortrait =  $folds;
   printf STDERR ("Portrait max reached at spine=%d, top=%d, x=%.2fcm, y=%.2fcm\n",$spinefolds,$topfolds,$XSize*cm,$YSize*cm);
@@ -118,7 +118,7 @@ if ($nextXSize > $outYMediaSize || $nextYSize > $outXMediaSize) {
   $maxLandscape = $folds;
   printf STDERR ("Landscape max reached at spine=%d, top=%d, x=%.2fcm, y=%.2fcm\n",$spinefolds,$topfolds,$XSize*cm,$YSize*cm);
 }
-while (! ($maxPortrait && $maxLandscape) ) {
+while ( $maxPortrait < 0 || $maxLandscape < 0 ) {
   $XSize = $nextXSize;
   $YSize = $nextYSize;
   $spinefolds += ($nextFoldDirection == SPINE) ? 1 : 0;
@@ -128,17 +128,22 @@ while (! ($maxPortrait && $maxLandscape) ) {
   $nextXSize *= ($nextFoldDirection == SPINE) ? 2 : 1;
   $nextYSize *= ($nextFoldDirection == TOP) ? 2 : 1;
   printf STDERR ("Folded spine=%d, top=%d, x=%.2fcm, y=%.2fcm, nx=%.2fcm, ny=%.2fcm\n",$spinefolds,$topfolds,$XSize*cm,$YSize*cm,$nextXSize*cm,$nextYSize*cm);
-  if ( ! $maxPortrait  && ($nextXSize > $outXMediaSize || $nextYSize > $outYMediaSize) ) {
+  if ( $maxPortrait < 0 && ($nextXSize > $outXMediaSize || $nextYSize > $outYMediaSize) ) {
     $maxPortrait =  $folds;
     printf STDERR ("Portrait max reached at spine=%d, top=%d, x=%.2fcm, y=%.2fcm, nx=%.2fcm, ny=%.2fcm\n",$spinefolds,$topfolds,$XSize*cm,$YSize*cm,$nextXSize*cm,$nextYSize*cm);
   }
-  if ( ! $maxLandscape && ($nextXSize > $outYMediaSize || $nextYSize > $outXMediaSize) ) {
+  if ( $maxLandscape < 0 && ($nextXSize > $outYMediaSize || $nextYSize > $outXMediaSize) ) {
     $maxLandscape = $folds;
     printf STDERR ("Landscape max reached at spine=%d, top=%d, x=%.2fcm, y=%.2fcm, nx=%.2fcm, ny=%.2fcm\n",$spinefolds,$topfolds,$XSize*cm,$YSize*cm,$nextXSize*cm,$nextYSize*cm);
   }
 }
-#TODO implement modeled algorithm for deciding on page orientation and
-#TODO implement final rotation in function of landscape 
+
+if ($spinefolds < 0) {
+  print STDERR ("Error: the output media size is too small to create signatures. Use the scaling option or define a larger output medium size.\n");
+  pod2usage(1); 
+}
+
+my $foldOffset = $spinefolds - $topfolds;
 
 my $rotate = 0;
 if ($maxLandscape > $maxPortrait) {
@@ -175,8 +180,11 @@ if ( $sheetsPerSignature == 0 ) {                                       #user re
 my $layers = $inPagesPerSignature / 2;
 my $outPages = $signatures * $sheetsPerSignature * 2;
 
-my $Yoffset = ($cellYSize - $inYCropSize) / 2;                          #should be positive
+my $Yoffset = ($cellYSize - $inYMediaSize) / 2;                          #should be positive
 my $Xoffset = $scale * ($inmllx - $incllx);                             #should be zero
+
+my $YCropOffset = ($cellYSize - $inYCropSize) / 2;
+my $XCropOffset = 0; 
 
 
 if ($debug || $verbose)  {
@@ -270,7 +278,6 @@ for ($fold=1; $fold<=$folds; $fold++) {                                 #model u
     }
 }
 
-
 #create the blank pages for the output
 my $outPdf = PDF::API2->new;
 my @outPage;
@@ -286,26 +293,77 @@ for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
     my $line = $outPage[$nr]->gfx;
     $line->save;
     $line->linedash((5,15));
-    $line->move($outXMediaSize - $outXMediaSize/2**($fold-1),$outYMediaSize/2**$fold);
+    $line->move($outXMediaSize - $outXMediaSize/2**($fold-1-$foldOffset),$outYMediaSize/2**$fold);
     $line->line($outXMediaSize,$outYMediaSize/2**$fold);
     $line->stroke;
     $line->restore;
   }
 }
 
-#draw a folding ticks for each spinefold  on each first page of a signature
+#draw folding ticks for each spinefold  on each first page of a signature
 for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
   my $fold;
   for ($fold=1; $fold<=$spinefolds; $fold+=1) {
     my $line = $outPage[$nr]->gfx;
     $line->save;
-    $line->move($outXMediaSize - $outXMediaSize/2**$fold,$outYMediaSize/2**$fold);
-    $line->line($outXMediaSize - $outXMediaSize/2**$fold,$outYMediaSize/2**$fold - $outYMediaSize/50);
+    $line->move($outXMediaSize - $outXMediaSize/2**$fold,$outYMediaSize/2**($fold-$foldOffset));
+    $line->line($outXMediaSize - $outXMediaSize/2**$fold,$outYMediaSize/2**($fold-$foldOffset) - $outYMediaSize/50);
     $line->stroke;
     $line->restore;
     $line->save;
     $line->move($outXMediaSize - $outXMediaSize/2**$fold,$outYMediaSize/50);
     $line->line($outXMediaSize - $outXMediaSize/2**$fold,0);
+    $line->stroke;
+    $line->restore;
+  }
+}
+
+#draw cutting marks on each first page of a signature
+my $frontPageX = $outXMediaSize - $cellXSize;
+my $frontPageY = 0;
+for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
+  my $line = $outPage[$nr]->gfx;
+  $line->save;
+  $line->move($frontPageX + $XCropOffset - 0.25/cm, $frontPageY + $YCropOffset + $inYCropSize);
+  $line->line($frontPageX + $XCropOffset + 0.25/cm, $frontPageY + $YCropOffset + $inYCropSize);
+  $line->move($frontPageX + $XCropOffset + $inXCropSize + 0.25/cm, $frontPageY + $YCropOffset + $inYCropSize);
+  $line->line($frontPageX + $XCropOffset + $inXCropSize + 0.75/cm, $frontPageY + $YCropOffset + $inYCropSize);
+  $line->move($frontPageX + $XCropOffset - 0.25/cm, $frontPageY + $YCropOffset);
+  $line->line($frontPageX + $XCropOffset + 0.25/cm, $frontPageY + $YCropOffset);
+  $line->move($frontPageX + $XCropOffset + $inXCropSize + 0.25/cm, $frontPageY + $YCropOffset);
+  $line->line($frontPageX + $XCropOffset + $inXCropSize + 0.75/cm, $frontPageY + $YCropOffset);
+  $line->move($frontPageX + $XCropOffset + $inXCropSize, $frontPageY + $YCropOffset + $inYCropSize + 0.75/cm);
+  $line->line($frontPageX + $XCropOffset + $inXCropSize, $frontPageY + $YCropOffset + $inYCropSize + 0.25/cm);
+  $line->move($frontPageX + $XCropOffset + $inXCropSize, $frontPageY + $YCropOffset + 0.75/cm);
+  $line->line($frontPageX + $XCropOffset + $inXCropSize, $frontPageY + $YCropOffset + 0.25/cm);
+  $line->stroke;
+  $line->restore;
+}
+
+#draw needle-hole marks between the center pages of a signature
+for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
+  if ( $topfolds ) {
+    my $centerX = $outXMediaSize - $cellXSize;
+    my $centerY = 1.5 * $cellYSize;
+    my $distance = $cellYSize / 4;
+    my $line = $outPage[$nr]->gfx;
+    $line->save;
+    $line->circle($centerX, $centerY + 1.5 * $distance, 0.01/cm);
+    $line->circle($centerX, $centerY + 0.5 * $distance, 0.01/cm);
+    $line->circle($centerX, $centerY - 0.5 * $distance, 0.01/cm);
+    $line->circle($centerX, $centerY - 1.5 * $distance, 0.01/cm);
+    $line->stroke;
+    $line->restore;
+  } else {
+    my $centerX = $outXMediaSize - $cellXSize;
+    my $centerY = 0.5 * $cellYSize;
+    my $distance = $cellYSize / 4;
+    my $line = $outPage[$nr+1]->gfx;
+    $line->save;
+    $line->circle($centerX, $centerY + 1.5 * $distance, 0.01/cm);
+    $line->circle($centerX, $centerY + 0.5 * $distance, 0.01/cm);
+    $line->circle($centerX, $centerY - 0.5 * $distance, 0.01/cm);
+    $line->circle($centerX, $centerY - 1.5 * $distance, 0.01/cm);
     $line->stroke;
     $line->restore;
   }
