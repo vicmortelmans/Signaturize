@@ -33,6 +33,7 @@ my $outputFilename = "-";                                               #default
 my $sheetsPerSignature = -1;                                            #default value used for internal logic
 my $leadPages = 0;                                                      #default number of leading blank pages
 my $medium = "a4";
+my $disableMarks = 0;
 my $debug = 0;
 my $verbose = 0;
 my $help = 0;
@@ -42,6 +43,7 @@ GetOptions(
   'b=i' => \$sheetsPerSignature,
   'l=i' => \$leadPages,
   'm=s' => \$medium,
+  'c' => \$disableMarks,
   'd' => \$debug,
   'v' => \$verbose,
   'h' => \$help
@@ -286,105 +288,108 @@ for ($nr=1; $nr<=$outPages; $nr++) {
     $outPage[$nr]->mediabox($outXMediaSize, $outYMediaSize);
 }
 
-#draw a folding line for each topfold  on each first page of a signature
-for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
-  my $fold;
-  for ($fold=1; $fold<=$topfolds; $fold+=1) {
+if (! $disableMarks) {
+
+  #draw a folding line for each topfold  on each first page of a signature
+  for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
+    my $fold;
+    for ($fold=1; $fold<=$topfolds; $fold+=1) {
+      my $line = $outPage[$nr]->gfx;
+      $line->save;
+      $line->linedash((5,15));
+      $line->move($outXMediaSize - $outXMediaSize/2**($fold-1-$foldOffset),$outYMediaSize/2**$fold);
+      $line->line($outXMediaSize,$outYMediaSize/2**$fold);
+      $line->stroke;
+      $line->restore;
+    }
+  }
+  
+  #draw folding ticks for each spinefold  on each first page of a signature
+  for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
+    my $fold;
+    for ($fold=1; $fold<=$spinefolds; $fold+=1) {
+      my $line = $outPage[$nr]->gfx;
+      $line->save;
+      $line->move($outXMediaSize - $outXMediaSize/2**$fold,$outYMediaSize/2**($fold-$foldOffset));
+      $line->line($outXMediaSize - $outXMediaSize/2**$fold,$outYMediaSize/2**($fold-$foldOffset) - $outYMediaSize/50);
+      $line->stroke;
+      $line->restore;
+      $line->save;
+      $line->move($outXMediaSize - $outXMediaSize/2**$fold,$outYMediaSize/50);
+      $line->line($outXMediaSize - $outXMediaSize/2**$fold,0);
+      $line->stroke;
+      $line->restore;
+    }
+  }
+  
+  #draw cutting marks on each first page of a signature
+  my $frontPageX = $outXMediaSize - $cellXSize;
+  my $frontPageY = 0;
+  for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
     my $line = $outPage[$nr]->gfx;
     $line->save;
-    $line->linedash((5,15));
-    $line->move($outXMediaSize - $outXMediaSize/2**($fold-1-$foldOffset),$outYMediaSize/2**$fold);
-    $line->line($outXMediaSize,$outYMediaSize/2**$fold);
+    $line->move($frontPageX + $XCropOffset - 0.25/cm, $frontPageY + $YCropOffset + $inYCropSize);
+    $line->line($frontPageX + $XCropOffset + 0.25/cm, $frontPageY + $YCropOffset + $inYCropSize);
+    $line->move($frontPageX + $XCropOffset + $inXCropSize + 0.25/cm, $frontPageY + $YCropOffset + $inYCropSize);
+    $line->line($frontPageX + $XCropOffset + $inXCropSize + 0.75/cm, $frontPageY + $YCropOffset + $inYCropSize);
+    $line->move($frontPageX + $XCropOffset - 0.25/cm, $frontPageY + $YCropOffset);
+    $line->line($frontPageX + $XCropOffset + 0.25/cm, $frontPageY + $YCropOffset);
+    $line->move($frontPageX + $XCropOffset + $inXCropSize + 0.25/cm, $frontPageY + $YCropOffset);
+    $line->line($frontPageX + $XCropOffset + $inXCropSize + 0.75/cm, $frontPageY + $YCropOffset);
+    $line->move($frontPageX + $XCropOffset + $inXCropSize, $frontPageY + $YCropOffset + $inYCropSize + 0.75/cm);
+    $line->line($frontPageX + $XCropOffset + $inXCropSize, $frontPageY + $YCropOffset + $inYCropSize + 0.25/cm);
+    $line->move($frontPageX + $XCropOffset + $inXCropSize, $frontPageY + $YCropOffset + 0.75/cm);
+    $line->line($frontPageX + $XCropOffset + $inXCropSize, $frontPageY + $YCropOffset + 0.25/cm);
     $line->stroke;
     $line->restore;
   }
-}
-
-#draw folding ticks for each spinefold  on each first page of a signature
-for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
-  my $fold;
-  for ($fold=1; $fold<=$spinefolds; $fold+=1) {
-    my $line = $outPage[$nr]->gfx;
-    $line->save;
-    $line->move($outXMediaSize - $outXMediaSize/2**$fold,$outYMediaSize/2**($fold-$foldOffset));
-    $line->line($outXMediaSize - $outXMediaSize/2**$fold,$outYMediaSize/2**($fold-$foldOffset) - $outYMediaSize/50);
-    $line->stroke;
-    $line->restore;
-    $line->save;
-    $line->move($outXMediaSize - $outXMediaSize/2**$fold,$outYMediaSize/50);
-    $line->line($outXMediaSize - $outXMediaSize/2**$fold,0);
-    $line->stroke;
-    $line->restore;
+  
+  #draw needle-hole marks between the center pages of a signature
+  for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
+    if ( $topfolds ) {
+      my $centerX = $outXMediaSize - $cellXSize;
+      my $centerY = 1.5 * $cellYSize;
+      my $distance = $cellYSize / 4;
+      my $line = $outPage[$nr]->gfx;
+      $line->save;
+      $line->circle($centerX, $centerY + 1.5 * $distance, 0.01/cm);
+      $line->circle($centerX, $centerY + 0.5 * $distance, 0.01/cm);
+      $line->circle($centerX, $centerY - 0.5 * $distance, 0.01/cm);
+      $line->circle($centerX, $centerY - 1.5 * $distance, 0.01/cm);
+      $line->stroke;
+      $line->restore;
+    } else {
+      my $centerX = $outXMediaSize - $cellXSize;
+      my $centerY = 0.5 * $cellYSize;
+      my $distance = $cellYSize / 4;
+      my $line = $outPage[$nr+1]->gfx;
+      $line->save;
+      $line->circle($centerX, $centerY + 1.5 * $distance, 0.01/cm);
+      $line->circle($centerX, $centerY + 0.5 * $distance, 0.01/cm);
+      $line->circle($centerX, $centerY - 0.5 * $distance, 0.01/cm);
+      $line->circle($centerX, $centerY - 1.5 * $distance, 0.01/cm);
+      $line->stroke;
+      $line->restore;
+    }
   }
-}
-
-#draw cutting marks on each first page of a signature
-my $frontPageX = $outXMediaSize - $cellXSize;
-my $frontPageY = 0;
-for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
-  my $line = $outPage[$nr]->gfx;
-  $line->save;
-  $line->move($frontPageX + $XCropOffset - 0.25/cm, $frontPageY + $YCropOffset + $inYCropSize);
-  $line->line($frontPageX + $XCropOffset + 0.25/cm, $frontPageY + $YCropOffset + $inYCropSize);
-  $line->move($frontPageX + $XCropOffset + $inXCropSize + 0.25/cm, $frontPageY + $YCropOffset + $inYCropSize);
-  $line->line($frontPageX + $XCropOffset + $inXCropSize + 0.75/cm, $frontPageY + $YCropOffset + $inYCropSize);
-  $line->move($frontPageX + $XCropOffset - 0.25/cm, $frontPageY + $YCropOffset);
-  $line->line($frontPageX + $XCropOffset + 0.25/cm, $frontPageY + $YCropOffset);
-  $line->move($frontPageX + $XCropOffset + $inXCropSize + 0.25/cm, $frontPageY + $YCropOffset);
-  $line->line($frontPageX + $XCropOffset + $inXCropSize + 0.75/cm, $frontPageY + $YCropOffset);
-  $line->move($frontPageX + $XCropOffset + $inXCropSize, $frontPageY + $YCropOffset + $inYCropSize + 0.75/cm);
-  $line->line($frontPageX + $XCropOffset + $inXCropSize, $frontPageY + $YCropOffset + $inYCropSize + 0.25/cm);
-  $line->move($frontPageX + $XCropOffset + $inXCropSize, $frontPageY + $YCropOffset + 0.75/cm);
-  $line->line($frontPageX + $XCropOffset + $inXCropSize, $frontPageY + $YCropOffset + 0.25/cm);
-  $line->stroke;
-  $line->restore;
-}
-
-#draw needle-hole marks between the center pages of a signature
-for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
-  if ( $topfolds ) {
-    my $centerX = $outXMediaSize - $cellXSize;
-    my $centerY = 1.5 * $cellYSize;
-    my $distance = $cellYSize / 4;
-    my $line = $outPage[$nr]->gfx;
-    $line->save;
-    $line->circle($centerX, $centerY + 1.5 * $distance, 0.01/cm);
-    $line->circle($centerX, $centerY + 0.5 * $distance, 0.01/cm);
-    $line->circle($centerX, $centerY - 0.5 * $distance, 0.01/cm);
-    $line->circle($centerX, $centerY - 1.5 * $distance, 0.01/cm);
-    $line->stroke;
-    $line->restore;
-  } else {
-    my $centerX = $outXMediaSize - $cellXSize;
-    my $centerY = 0.5 * $cellYSize;
-    my $distance = $cellYSize / 4;
-    my $line = $outPage[$nr+1]->gfx;
-    $line->save;
-    $line->circle($centerX, $centerY + 1.5 * $distance, 0.01/cm);
-    $line->circle($centerX, $centerY + 0.5 * $distance, 0.01/cm);
-    $line->circle($centerX, $centerY - 0.5 * $distance, 0.01/cm);
-    $line->circle($centerX, $centerY - 1.5 * $distance, 0.01/cm);
-    $line->stroke;
-    $line->restore;
+  
+  #write on each page the number of the signature and the number within the signature
+  my %font = (
+       Helvetica => {
+           Bold   => $outPdf->corefont( 'Helvetica-Bold',    -encoding => 'latin1' ),
+           Roman  => $outPdf->corefont( 'Helvetica',         -encoding => 'latin1' ),
+           Italic => $outPdf->corefont( 'Helvetica-Oblique', -encoding => 'latin1' ),
+       },
+  );
+  for ($nr=1; $nr<=$outPages; $nr++) {
+    my $text = $outPage[$nr]->text;
+    $text->save;
+    $text->font($font{'Helvetica'}{'Roman'}, 0.2/cm );
+    $text->translate($outXMediaSize/2-1/cm, 1/cm );
+    $text->text(sprintf("%d - %d",($nr - 1) / (2*$sheetsPerSignature) + 1,($nr - 1) % (2*$sheetsPerSignature) + 1));
+    $text->restore;
   }
-}
-
-#write on each page the number of the signature and the number within the signature
-my %font = (
-     Helvetica => {
-         Bold   => $outPdf->corefont( 'Helvetica-Bold',    -encoding => 'latin1' ),
-         Roman  => $outPdf->corefont( 'Helvetica',         -encoding => 'latin1' ),
-         Italic => $outPdf->corefont( 'Helvetica-Oblique', -encoding => 'latin1' ),
-     },
-);
-for ($nr=1; $nr<=$outPages; $nr++) {
-  my $text = $outPage[$nr]->text;
-  $text->save;
-  $text->font($font{'Helvetica'}{'Roman'}, 0.2/cm );
-  $text->translate($outXMediaSize/2-1/cm, 1/cm );
-  $text->text(sprintf("%d - %d",($nr - 1) / (2*$sheetsPerSignature) + 1,($nr - 1) % (2*$sheetsPerSignature) + 1));
-  $text->restore;
-}
+} # end if ($cropmarks)
 
 # flip the pages facing down
 for ($nr=1; $nr<=$inPages; $nr++) {
@@ -464,11 +469,19 @@ Signaturize - print sheets that can be folded into bookbinding signatures
 signaturize [options] [<file>]
 
 Options:
+
 -s <value>  set the scale factor;
+
 -o <file>   set the output filename
+
 -b <value>  set the number of sheets used per signature;
+
 -m <string> set the output medium size;
+
+-c          disable marks;
+
 -d          turn on debug messages;
+
 -h          print help/usage
 
 =head1 OPTIONS
@@ -498,6 +511,10 @@ A number of empty lead pages can be added to the first signature.
 =item B<-m>
 
 The medium size of the output. If no medium size is specified, the default is 'a4'. Valid sizes are '4A', '2A', 'A0', 'A1', 'A2', 'A3', 'A4', 'A5', 'A6', '4B', '2B', 'B0', 'B1', 'B2', 'B3', 'B4', 'B5', 'B6', 'LETTER', 'BROADSHEET', 'LEDGER', 'TABLOID', 'LEGAL', 'EXECUTIVE', and '36X36'.
+
+=item B<-c>
+
+Disable folding marks, crop marks and needle marks.
 
 =item B<-d>
 
