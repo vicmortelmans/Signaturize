@@ -400,13 +400,13 @@ for ($nr=1; $nr<=$inPages; $nr++) {
 }
 
 # put the pages on the right positions as in the unfolded model
-for ($nr=1; $nr<=$inPages; $nr++) {
+for ($nr=$leadPages+1; $nr<=$inPages; $nr++) {
     my $insertedpageXobject = $outPdf->importPageIntoForm($inPdf, $nr - $leadPages); #fetch the page as Xobject
     my $outPageNr = ($model[$nr]->{SIG} - 1) * $sheetsPerSignature * 2 + 
                     ($model[$nr]->{LAYER} - 1) * 2 +
                     ($model[$nr]->{FACE} == DOWN ? 1 : 2);
     if ($debug)  {
-      printf STDERR ("Putting page %d on output page %d, ",$nr,$outPageNr);
+      printf STDERR ("Putting page %d on output page %d, ",$nr - $leadPages,$outPageNr);
     }
     my $x = ($model[$nr]->{X} - 1) * $cellXSize;
     my $y = ($model[$nr]->{Y} - 1) * $cellYSize;
