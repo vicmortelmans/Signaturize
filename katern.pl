@@ -169,7 +169,7 @@ if ( $sheetsPerSignature == 0 ) {                                       #user re
 } elsif ( $sheetsPerSignature > 0 ) {                                   #user-defined value
   $inPagesPerSignature = 2 * $sheetsPerSignature * $inPagesPerOutPage;
   $signatures = ceil($inPages / $inPagesPerSignature);
-} else {                                                                #default: final fold spans max. 8 sheets
+} else {                                                                #default: fold no more than 8 layers
   if ( $inPages % 4 ) {
     $inPagesPerSignature = $inPages + (4 - $inPages % 4);
   } else {
@@ -192,7 +192,7 @@ my $XCropOffset = 0;
 if ($debug || $verbose)  {
   printf STDERR ("Input pages%s: %d\n",$leadPages ? " (inc. empty lead pages)" : "",$inPages);
   printf STDERR ("inXCropSize: %.2fcm\n",$inXCropSize*cm);
-  printf STDERR ("InYCropSize: %.2fcm\n",$inYCropSize*cm);
+  printf STDERR ("inYCropSize: %.2fcm\n",$inYCropSize*cm);
   printf STDERR ("outXMediaSize: %.2fcm\n",$outXMediaSize*cm);
   printf STDERR ("outYMediaSize: %.2fcm\n",$outYMediaSize*cm);
   printf STDERR ("spinefolds: %d\n",$spinefolds);
@@ -344,37 +344,6 @@ if (! $disableMarks) {
     $line->restore;
   }
   
-  #draw needle-hole marks between the center pages of a signature
-  if ( $topfolds ) {
-    for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
-      my $centerX = $outXMediaSize - $cellXSize;
-      my $centerY = 1.5 * $cellYSize;
-      my $distance = $cellYSize / 4;
-      my $line = $outPage[$nr]->gfx;
-      $line->save;
-      $line->circle($centerX, $centerY + 1.5 * $distance, 0.01/cm);
-      $line->circle($centerX, $centerY + 0.5 * $distance, 0.01/cm);
-      $line->circle($centerX, $centerY - 0.5 * $distance, 0.01/cm);
-      $line->circle($centerX, $centerY - 1.5 * $distance, 0.01/cm);
-      $line->stroke;
-      $line->restore;
-    }
-  } else {
-    for ($nr=2*$sheetsPerSignature; $nr<$outPages; $nr+=2*$sheetsPerSignature) {
-      my $centerX = $outXMediaSize - $cellXSize;
-      my $centerY = 0.5 * $cellYSize;
-      my $distance = $cellYSize / 4;
-      my $line = $outPage[$nr+1]->gfx;
-      $line->save;
-      $line->circle($centerX, $centerY + 1.5 * $distance, 0.01/cm);
-      $line->circle($centerX, $centerY + 0.5 * $distance, 0.01/cm);
-      $line->circle($centerX, $centerY - 0.5 * $distance, 0.01/cm);
-      $line->circle($centerX, $centerY - 1.5 * $distance, 0.01/cm);
-      $line->stroke;
-      $line->restore;
-    }
-  }
-  
   #write on each page the number of the signature and the number within the signature
   my %font = (
        Helvetica => {
@@ -443,6 +412,37 @@ for ($nr=$leadPages+1; $nr<=$inPages; $nr++) {
     }
 }
 
+#draw needle-hole marks between the center pages of a signature
+if ( $topfolds ) {
+    for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
+      my $centerX = $outXMediaSize - $cellXSize;
+      my $centerY = 1.5 * $cellYSize;
+      my $distance = $outYMediaSize * $scale / 3.7;
+      my $line = $outPage[$nr]->gfx;
+      $line->save;
+      $line->circle($centerX, $centerY + 1.5 * $distance, 0.01/cm);
+      $line->circle($centerX, $centerY + 0.5 * $distance, 0.01/cm);
+      $line->circle($centerX, $centerY - 0.5 * $distance, 0.01/cm);
+      $line->circle($centerX, $centerY - 1.5 * $distance, 0.01/cm);
+      $line->stroke;
+      $line->restore;
+    }
+} else {
+    for ($nr=2*$sheetsPerSignature; $nr<$outPages; $nr+=2*$sheetsPerSignature) {
+      my $centerX = $outXMediaSize - $cellXSize;
+      my $centerY = 0.5 * $cellYSize;
+      my $distance = $outYMediaSize * $scale / 3.7;
+      my $line = $outPage[$nr]->gfx;
+      $line->save;
+      $line->circle($centerX, $centerY + 1.5 * $distance, 0.01/cm);
+      $line->circle($centerX, $centerY + 0.5 * $distance, 0.01/cm);
+      $line->circle($centerX, $centerY - 0.5 * $distance, 0.01/cm);
+      $line->circle($centerX, $centerY - 1.5 * $distance, 0.01/cm);
+      $line->stroke;
+      $line->restore;
+    }
+}
+  
 if ($rotate) {
   for ($nr=1; $nr<=$outPages; $nr++) {
     if ($nr % 2) {
