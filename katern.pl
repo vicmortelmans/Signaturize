@@ -345,8 +345,8 @@ if (! $disableMarks) {
   }
   
   #draw needle-hole marks between the center pages of a signature
-  for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
-    if ( $topfolds ) {
+  if ( $topfolds ) {
+    for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
       my $centerX = $outXMediaSize - $cellXSize;
       my $centerY = 1.5 * $cellYSize;
       my $distance = $cellYSize / 4;
@@ -358,7 +358,9 @@ if (! $disableMarks) {
       $line->circle($centerX, $centerY - 1.5 * $distance, 0.01/cm);
       $line->stroke;
       $line->restore;
-    } else {
+    }
+  } else {
+    for ($nr=2*$sheetsPerSignature; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
       my $centerX = $outXMediaSize - $cellXSize;
       my $centerY = 0.5 * $cellYSize;
       my $distance = $cellYSize / 4;
