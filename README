@@ -1,4 +1,7 @@
-Signaturize is a perl script that processes a PDF file. The output is a new PDF file that contains the pages of the original PDF, put in a layout that allows the printed pages to be folded such that signatures (booklets, or ‘katernen’ in dutch) are created, as they are used for bookbinding.
+Signaturize is a perl script that processes a PDF file. The output is a new PDF 
+file that contains the pages of the original PDF, put in a layout that allows the 
+printed pages to be folded such that signatures (booklets, or ‘katernen’ in 
+dutch) are created, as they are used for bookbinding.
 
 Read more here:
 

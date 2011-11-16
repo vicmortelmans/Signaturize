@@ -360,7 +360,7 @@ if (! $disableMarks) {
       $line->restore;
     }
   } else {
-    for ($nr=2*$sheetsPerSignature; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
+    for ($nr=2*$sheetsPerSignature; $nr<$outPages; $nr+=2*$sheetsPerSignature) {
       my $centerX = $outXMediaSize - $cellXSize;
       my $centerY = 0.5 * $cellYSize;
       my $distance = $cellYSize / 4;
