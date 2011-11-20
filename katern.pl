@@ -412,37 +412,40 @@ for ($nr=$leadPages+1; $nr<=$inPages; $nr++) {
     }
 }
 
-#draw needle-hole marks between the center pages of a signature
-if ( $topfolds ) {
-    for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
-      my $centerX = $outXMediaSize - $cellXSize;
-      my $centerY = 1.5 * $cellYSize;
-      my $distance = $outYMediaSize * $scale / 3.7;
-      my $line = $outPage[$nr]->gfx;
-      $line->save;
-      $line->circle($centerX, $centerY + 1.5 * $distance, 0.01/cm);
-      $line->circle($centerX, $centerY + 0.5 * $distance, 0.01/cm);
-      $line->circle($centerX, $centerY - 0.5 * $distance, 0.01/cm);
-      $line->circle($centerX, $centerY - 1.5 * $distance, 0.01/cm);
-      $line->stroke;
-      $line->restore;
-    }
-} else {
-    for ($nr=2*$sheetsPerSignature; $nr<$outPages; $nr+=2*$sheetsPerSignature) {
-      my $centerX = $outXMediaSize - $cellXSize;
-      my $centerY = 0.5 * $cellYSize;
-      my $distance = $outYMediaSize * $scale / 3.7;
-      my $line = $outPage[$nr]->gfx;
-      $line->save;
-      $line->circle($centerX, $centerY + 1.5 * $distance, 0.01/cm);
-      $line->circle($centerX, $centerY + 0.5 * $distance, 0.01/cm);
-      $line->circle($centerX, $centerY - 0.5 * $distance, 0.01/cm);
-      $line->circle($centerX, $centerY - 1.5 * $distance, 0.01/cm);
-      $line->stroke;
-      $line->restore;
+if (! $disableMarks) {
+
+    #draw needle-hole marks between the center pages of a signature
+    if ( $topfolds ) {
+        for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
+          my $centerX = $outXMediaSize - $cellXSize;
+          my $centerY = 1.5 * $cellYSize;
+          my $distance = $outYMediaSize * $scale / 3.7;
+          my $line = $outPage[$nr]->gfx;
+          $line->save;
+          $line->circle($centerX, $centerY + 1.5 * $distance, 0.01/cm);
+          $line->circle($centerX, $centerY + 0.5 * $distance, 0.01/cm);
+          $line->circle($centerX, $centerY - 0.5 * $distance, 0.01/cm);
+          $line->circle($centerX, $centerY - 1.5 * $distance, 0.01/cm);
+          $line->stroke;
+          $line->restore;
+        }
+    } else {
+        for ($nr=2*$sheetsPerSignature; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
+          my $centerX = $outXMediaSize - $cellXSize;
+          my $centerY = 0.5 * $cellYSize;
+          my $distance = $outYMediaSize * $scale / 3.7;
+          my $line = $outPage[$nr]->gfx;
+          $line->save;
+          $line->circle($centerX, $centerY + 1.5 * $distance, 0.01/cm);
+          $line->circle($centerX, $centerY + 0.5 * $distance, 0.01/cm);
+          $line->circle($centerX, $centerY - 0.5 * $distance, 0.01/cm);
+          $line->circle($centerX, $centerY - 1.5 * $distance, 0.01/cm);
+          $line->stroke;
+          $line->restore;
+        }
     }
 }
-  
+
 if ($rotate) {
   for ($nr=1; $nr<=$outPages; $nr++) {
     if ($nr % 2) {
