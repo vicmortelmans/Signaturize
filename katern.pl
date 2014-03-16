@@ -34,6 +34,7 @@ my $sheetsPerSignature = -1;                                            #default
 my $leadPages = 0;                                                      #default number of leading blank pages
 my $medium = "a4";
 my $disableMarks = 0;
+my $moveLastPageToBackCover = 0;
 my $debug = 0;
 my $verbose = 0;
 my $help = 0;
@@ -44,6 +45,7 @@ GetOptions(
   'l=i' => \$leadPages,
   'm=s' => \$medium,
   'c' => \$disableMarks,
+  'f' => \$moveLastPageToBackCover,
   'd' => \$debug,
   'v' => \$verbose,
   'h' => \$help
@@ -179,6 +181,7 @@ if ( $sheetsPerSignature == 0 ) {                                       #user re
   $signatures = ceil($inPages / $inPagesPerSignature);
   $sheetsPerSignature = ceil($inPagesPerSignature / 2 / $inPagesPerOutPage);
 }
+my $signaturePages = $signatures * $inPagesPerSignature;
 my $layers = $inPagesPerSignature / 2;
 my $outPages = $signatures * $sheetsPerSignature * 2;
 
@@ -211,7 +214,7 @@ my $nr;
 if ($debug)  {
   printf STDERR ("%6s%6s%6s%6s%6s%6s%6s%6s%6s\n","sig","signr","nr","layer","face","x","y","rot","align");
 }
-for ($nr=1; $nr<=$inPages; $nr++) {                                     #model the closed book lying face down
+for ($nr=1; $nr<=$signaturePages; $nr++) {                                     #model the closed book lying face down
     $model[$nr] = {
       SIG   =>  int(($nr - 1) / $inPagesPerSignature) + 1,             #sequence number of the signature
       SIGNR =>  ($nr - 1) % $inPagesPerSignature + 1,                  #page number within the signature 
@@ -252,7 +255,7 @@ for ($fold=1; $fold<=$folds; $fold++) {                                 #model u
     }
     $maxX = $foldDirection == SPINE ? 2 * $maxX : $maxX;
     $maxY = $foldDirection == TOP ? 2 * $maxY : $maxY;
-    for ($nr=1; $nr<=$inPages; $nr++) {
+    for ($nr=1; $nr<=$signaturePages; $nr++) {
         if ($model[$nr]->{LAYER} > $layers / 2) {                       #the top half of the folded sheets are unfolded
             $model[$nr]->{FACE} = $model[$nr]->{FACE} == DOWN ? UP : DOWN;
             $model[$nr]->{LAYER} = $layers - $model[$nr]->{LAYER} + 1;
@@ -363,7 +366,7 @@ if (! $disableMarks) {
 } # end if ($cropmarks)
 
 # flip the pages facing down
-for ($nr=1; $nr<=$inPages; $nr++) {
+for ($nr=1; $nr<=$signaturePages; $nr++) {
   if ($model[$nr]->{FACE} == DOWN) {                       
       $model[$nr]->{X} = $matrixXSize - $model[$nr]->{X} + 1;
       $model[$nr]->{ALIGN} = 1 - $model[$nr]->{ALIGN};
@@ -372,17 +375,23 @@ for ($nr=1; $nr<=$inPages; $nr++) {
 
 # put the pages on the right positions as in the unfolded model
 for ($nr=$leadPages+1; $nr<=$inPages; $nr++) {
+    my $signatureNr;
+    if ($nr == $inPages && $moveLastPageToBackCover) {
+        $signatureNr = $signaturePages;
+    } else {
+        $signatureNr = $nr;
+    }
     my $insertedpageXobject = $outPdf->importPageIntoForm($inPdf, $nr - $leadPages); #fetch the page as Xobject
-    my $outPageNr = ($model[$nr]->{SIG} - 1) * $sheetsPerSignature * 2 + 
-                    ($model[$nr]->{LAYER} - 1) * 2 +
-                    ($model[$nr]->{FACE} == DOWN ? 1 : 2);
+    my $outPageNr = ($model[$signatureNr]->{SIG} - 1) * $sheetsPerSignature * 2 + 
+                    ($model[$signatureNr]->{LAYER} - 1) * 2 +
+                    ($model[$signatureNr]->{FACE} == DOWN ? 1 : 2);
     if ($debug)  {
       printf STDERR ("Putting page %d on output page %d, ",$nr - $leadPages,$outPageNr);
     }
-    my $x = ($model[$nr]->{X} - 1) * $cellXSize;
-    my $y = ($model[$nr]->{Y} - 1) * $cellYSize;
-    if ( $model[$nr]->{ROT} == 0 ) {
-      if ( $model[$nr]->{ALIGN} == LEFT ) {
+    my $x = ($model[$signatureNr]->{X} - 1) * $cellXSize;
+    my $y = ($model[$signatureNr]->{Y} - 1) * $cellYSize;
+    if ( $model[$signatureNr]->{ROT} == 0 ) {
+      if ( $model[$signatureNr]->{ALIGN} == LEFT ) {
         $x += $Xoffset;
         $y += $Yoffset;
       } else {
@@ -390,7 +399,7 @@ for ($nr=$leadPages+1; $nr<=$inPages; $nr++) {
         $y += $Yoffset;
       }
     } else {
-      if ( $model[$nr]->{ALIGN} == LEFT ) {
+      if ( $model[$signatureNr]->{ALIGN} == LEFT ) {
         $x += $Xoffset + $inXMediaSize;
         $y += $Yoffset + $inYMediaSize;
       } else {
@@ -402,13 +411,13 @@ for ($nr=$leadPages+1; $nr<=$inPages; $nr++) {
     $insertedpageGfx->save;                                             #otherwise the previous tranformation is added
     $insertedpageGfx->transform(
                  -translate  => [$x,$y],
-                 -rotate     => $model[$nr]->{ROT},
+                 -rotate     => $model[$signatureNr]->{ROT},
                  -scale      => [$scale,$scale],
     );                                                                  #define a transformation on the graphics object
     $insertedpageGfx->formimage($insertedpageXobject, 0, 0, 1);         #drop the page Xobject in the graphics object
     $insertedpageGfx->restore;
     if ($debug)  {
-      printf STDERR ("with a shift of (%d cm,%d cm) and a rotation of %d\n",$x*cm,$y*cm,$model[$nr]->{ROT});
+      printf STDERR ("with a shift of (%d cm,%d cm) and a rotation of %d\n",$x*cm,$y*cm,$model[$signatureNr]->{ROT});
     }
 }
 
@@ -485,6 +494,8 @@ Options:
 
 -c          disable marks;
 
+-f          print last page on the last page of the last signature
+
 -d          turn on debug messages;
 
 -h          print help/usage
@@ -520,6 +531,10 @@ The medium size of the output. If no medium size is specified, the default is 'a
 =item B<-c>
 
 Disable folding marks, crop marks and needle marks.
+
+=item B<-f>
+
+Print the last page on the last page of the last signature, by adding blank pages in front of it.
 
 =item B<-d>
 
