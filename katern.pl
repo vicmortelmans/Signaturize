@@ -172,14 +172,10 @@ if ( $sheetsPerSignature == 0 ) {                                       #user re
   $inPagesPerSignature = 2 * $sheetsPerSignature * $inPagesPerOutPage;
   $signatures = ceil($inPages / $inPagesPerSignature);
 } else {                                                                #default: fold no more than 8 layers
-  if ( $inPages % 4 ) {
-    $inPagesPerSignature = $inPages + (4 - $inPages % 4);
-  } else {
-    $inPagesPerSignature = $inPages;
-  }
-  $inPagesPerSignature = max(min(32, $inPagesPerSignature),2*$inPagesPerOutPage);
+  $sheetsPerSignature = ceil(8 / $inPagesPerOutPage);                   #inpagesPerOutPages = layersInOnePage
+  $inPagesPerSignature = 2 * $sheetsPerSignature * $inPagesPerOutPage;
   $signatures = ceil($inPages / $inPagesPerSignature);
-  $sheetsPerSignature = ceil($inPagesPerSignature / 2 / $inPagesPerOutPage);
+  printf STDERR ("DEBUG sheetsPerSignature=%d, inPagesPerOutPage=%d", $sheetsPerSignature, $inPagesPerOutPage);
 }
 my $signaturePages = $signatures * $inPagesPerSignature;
 my $layers = $inPagesPerSignature / 2;
