@@ -424,7 +424,7 @@ if (! $disableMarks) {
         for ($nr=1; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
           my $centerX = $outXMediaSize - $cellXSize;
           my $centerY = 1.5 * $cellYSize;
-          my $distance = $outYMediaSize * $scale / 3.7;
+          my $distance = $inYCropSize * $scale / 2.5;
           my $line = $outPage[$nr]->gfx;
           $line->save;
           $line->circle($centerX, $centerY + 1.5 * $distance, 0.01/cm);
@@ -438,7 +438,7 @@ if (! $disableMarks) {
         for ($nr=2*$sheetsPerSignature; $nr<=$outPages; $nr+=2*$sheetsPerSignature) {
           my $centerX = $outXMediaSize - $cellXSize;
           my $centerY = 0.5 * $cellYSize;
-          my $distance = $outYMediaSize * $scale / 3.7;
+          my $distance = $inYCropSize * $scale / 2.5;
           my $line = $outPage[$nr]->gfx;
           $line->save;
           $line->circle($centerX, $centerY + 1.5 * $distance, 0.01/cm);
